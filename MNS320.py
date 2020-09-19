@@ -15,6 +15,7 @@ import datetime
 import xlsxwriter
 import xlrd
 import re
+import os # import miscellaneous operating system interfaces (to find cwd later on)
 now = datetime.datetime.now()
 date = now.strftime("%m.%d.%Y")
 hours, minutes = now.strftime("%H:%M").split(":")
@@ -23,7 +24,8 @@ if hours > 12:
     hours -= 12
 standardTime = "{}:{}".format(hours, minutes)
 militaryTime = now.strftime("%H:%M")
-rosterLocation = 'C:\\Users\\ceann\\Documents\\School\\Semester 9\\MNS320\\roster.xlsx'
+PacPath = os.getcwd() #Determine the current working directory 
+rosterLocation=PacPath+'\\roster.xlsx' # assumes this .py and the .xlsx are in the same folder 
 rosterWB = xlrd.open_workbook(rosterLocation) 
 rosterSheet = rosterWB.sheet_by_index(0) 
 
@@ -102,7 +104,7 @@ elif category == 'a':
 # Grading mode is the default
 else:    
     name = input(" What do you want to save your file as? Don't include the path or file type.\n\n")
-    newWorkbookNamePath = 'C:\\Users\\ceann\\Documents\\School\\Semester 9\\MNS320'   
+    newWorkbookNamePath = PacPath 
     newWorkbookName = '{}\\{}.xlsx'.format(newWorkbookNamePath, name)
     
     # Student name, ID, and grades will be stored as class instances of MNS320
