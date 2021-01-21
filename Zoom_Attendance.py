@@ -6,7 +6,8 @@
 # column D: UT EID email
 
 # Also this script won't work if your class is going on during midnight, but
-# for the sake of anyone involved with that, hopefully that won't matter.
+# for the sake of anyone involved with someting gross like that, hopefully 
+# that won't matter.
 
 
 #%% Imported modules
@@ -28,6 +29,10 @@ class_end             = datetime.time(16, 30)
 
 # How much time is significant for loss of connectivity?
 significant_departure = 45 # [s]
+
+# Sort output by?
+sort_by_roster = False
+sort_by_time = True
 
 #%%  Read data from the zoom meeting report to put in lists
 
@@ -81,10 +86,14 @@ class StudentData():
         self.joined = []
         self.left = []
         
+        self.absent = False
+        self.tardy  = False
+        self.multiplelogins = False
+        self.leftearly = False
 #TODO: __lt__ should enable .sort() for sorting entries by time rather
 #      than alphabetically as with the roster. 
-    def __lt__(self, other):
-         return self.joined[0] < other.joined[0]
+#    def __lt__(self, other):
+#         return self.joined < other.joined
 
 
 #%% Create class instances named for every email in the roster.
@@ -107,7 +116,7 @@ for i in range(len(roster_email)):
     instances.append(locals()[''.join(re.split(r'\W+', str(roster_email[i])))]) 
 
 #%% Create a list of the attendees as strings (without repetition) including 
-#   unregistered people such as the professor or TAs.
+#   unregistered people such as the professor or TA(s).
 
 attendees = []
 [attendees.append(''.join(re.split(r'\W+', str(zoom_report_email[i])))) for i in range(len(zoom_report_email)) if ''.join(re.split(r'\W+', str(zoom_report_email[i]))) not in attendees]
@@ -183,7 +192,10 @@ for i in range(len(roster_email)):
 print()
 
 #%% Check who had arrival(s) after the (buffered) start time and departure(s) 
-#   before the (buffered) end time. Then print to console.
+#   before the (buffered) end time. Then store as a list of tuples for sorting  
+#   before printing the contents of the list to console.
+
+print_list = []   # preallocate list space
 
 for i in range(len(roster_email)): # for each person in the roster
 
@@ -197,35 +209,40 @@ for i in range(len(roster_email)): # for each person in the roster
     fullname = first+' '+last    
     
     # Make sure the student in question wasn't already marked as absent.
-    if ''.join(re.split(r'\W+', str(roster_email[i]))) in attendees:        
-    
+    if ''.join(re.split(r'\W+', str(roster_email[i]))) not in attendees:        
+        ClassInstance.absent = True
+        
+    else:     
         # Check if the first login time is after class started.
         if time_in_seconds(ClassInstance.joined[0]) > time_in_seconds(class_start):
-            print(fullname+' joined at '+ClassInstance.joined[0].strftime("%H:%M:%S"))
+            print_list.append( ((fullname+' joined at '+ClassInstance.joined[0].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[0])))
+            ClassInstance.tardy = True
         
         # Check if there are multiple logins.
         if len(ClassInstance.joined) > 1:
             for i in range(len(ClassInstance.joined)): 
-                print(fullname+' left at '+ClassInstance.left[i].strftime("%H:%M:%S"))
+                print_list.append(((fullname+' left at '+ClassInstance.left[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[i])))
             if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end):
                 redundant = True
+            ClassInstance.multiplelogins = True
         
         # Check if the logoff time was before class ended.
         if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end) and redundant == False:
-            print(fullname+' left at '+ClassInstance.joined[0].strftime("%H:%M:%S"))
-        
-     
+            print_list.append(((fullname+' left at '+ClassInstance.left[-1].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[-1])))
+            ClassInstance.leftearly = True
 
-
-
-
+#%% Now print non-absence cases. These can be sorted by different parameters, such
+#   as time or roster position. I suggest just using time, since it is the most
+#   intuitive, but have left a framework for any future sorting needs. 
+            
+if sort_by_time == True:
+    print_list.sort(key=lambda tup: tup[1])
+    for i in print_list:
+        print(i[0])
         
-        
-        
-        
-        
-        
-        
+elif sort_by_roster == True:
+    for i in print_list:
+        print(i[0])  
         
         
         
