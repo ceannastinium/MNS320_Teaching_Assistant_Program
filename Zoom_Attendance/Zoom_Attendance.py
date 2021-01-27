@@ -2,13 +2,14 @@
 
 # Relies on .csv file named 'roster.csv' in the same file as this .py
 # This .csv should be of the following format to work here without edits:
-# column A: LastName; FirstName
+# column A: LastName, FirstName
 # column D: UT EID email
 
 # Also this script won't work if your class is going on during midnight, but
-# for the sake of anyone involved with someting gross like that, hopefully 
+# for the sake of anyone involved with something like that, hopefully 
 # that won't matter.
 
+# TODO: include date in datetime format
 
 #%% Imported modules
 
@@ -20,15 +21,17 @@ import datetime
 #%% Parameters which may change with each check
 
 # Select which Zoom report you want to analyze.
-zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_94986659321.csv'
+zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_96659058822.csv'
 
 # Note datetime follows 24-hr time. So if class starts at 3:30pm and you want a 
 # 5 minute buffer for late arrivals, you would specify datetime.time(15, 35).
-class_start           = datetime.time(15, 35)
-class_end             = datetime.time(16, 30)
+# Likewise, if class ends at 4:45pm, you could buffer for 4:40 depending on
+# whether there was a quiz.
+class_start           = datetime.time(14, 35)
+class_end             = datetime.time(15, 45)
 
 # How much time is significant for loss of connectivity?
-significant_departure = 45 # [s]
+significant_departure = 60 # [s]
 
 # Sort output by?
 sort_by_roster = False
@@ -102,6 +105,10 @@ class StudentData():
 #   For the University of Texas system, the eids are unique to each member, so 
 #   redundacy should not be an issue.
 
+#   Note that for some reason, the emails are not always in that format for a couple
+#   students. In this case, you'll need to edit your roster.csv emails to be
+#   whatever email the student shows up as having upon logging into Zoom.
+
 registered_students = [] 
 instances = []
 
@@ -158,7 +165,7 @@ for i in range(len(zoom_report_email)):
         # If the student is not joining the meeting for the first time, then the 
         # existing record is adjusted.
         else:
-            minidur = time_in_seconds(jointime) - time_in_seconds(locals()[''.join(re.split(r'\W+', str(zoom_report_email[i])))].left[-1])
+            minidur = time_in_seconds(jointime) - time_in_seconds(ClassInstance.left[-1])
             
             # If the difference between this join time and the last leave time < 30 seconds, 
             # then count it as a single duration. This is because Zoom counts multiple 
@@ -175,7 +182,45 @@ for i in range(len(zoom_report_email)):
                 ClassInstance.joined.append( jointime  )
                 ClassInstance.left.append(   leavetime )
 
+#%% A possible error Zoom may make is listing times out of order. Here, let's 
+#   get them back in temporal order again.
+
+# For each student in the roster
+for i in range(len(roster_email)):
+    ClassInstance = locals()[''.join(re.split(r'\W+', str(roster_email[i])))]
+    ClassInstance.joined = sorted(ClassInstance.joined)
+    ClassInstance.left = sorted(ClassInstance.left)
+    
+    # TODO: consolidate this duration check with the above.
+
+    left_to_pop = []
+    joined_to_pop=[]
+
+    # if there are multiple join times
+    if len(ClassInstance.joined) > 1:    
+        for i in range(len(ClassInstance.joined)):
+
+            minidur = time_in_seconds(ClassInstance.joined[i]) - time_in_seconds(ClassInstance.left[i-1])
             
+            # If the difference between this join time and the last leave time is  
+            # less than the amount of time a diconnect is considered significant (e.g. 30 seconds),
+            # then count it as a single duration. This is because Zoom counts multiple 
+            # join times / leave times even if the break in connectivity is negligible. 
+            if abs(minidur) < significant_departure:
+                # Get rid of last leave time in favor of the new one
+                left_to_pop.append(i-1)
+                # Keep last join, but pop the current join:
+                joined_to_pop.append(i)
+        offset = 0
+        for i in joined_to_pop:
+            ClassInstance.joined.pop(i - offset)
+            offset += 1
+        offset = 0
+        for i in left_to_pop:
+            ClassInstance.left.pop(i- offset)
+            offset += 1
+    
+
 #%% Check who was fully absent. Then print to console.
                 
 #   Putting this for loop before checking tardiness means the absentees will
@@ -185,7 +230,7 @@ for i in range(len(roster_email)):
     if ''.join(re.split(r'\W+', str(roster_email[i]))) not in attendees:
         
         # Output will be the student's name
-        last, first = name[i].split('; ')
+        last, first = name[i].split(', ')
         fullname = first+' '+last
         
         print('Absent: '+str(fullname))
@@ -205,7 +250,7 @@ for i in range(len(roster_email)): # for each person in the roster
     ClassInstance = locals()[''.join(re.split(r'\W+', str(roster_email[i])))]
     
     # Output will be the student's name
-    last, first = name[i].split('; ')
+    last, first = name[i].split(', ')
     fullname = first+' '+last    
     
     # Make sure the student in question wasn't already marked as absent.
@@ -222,6 +267,8 @@ for i in range(len(roster_email)): # for each person in the roster
         if len(ClassInstance.joined) > 1:
             for i in range(len(ClassInstance.joined)): 
                 print_list.append(((fullname+' left at '+ClassInstance.left[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[i])))
+                if i != 0:
+                    print_list.append(((fullname+' joined at '+ClassInstance.joined[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[i])))
             if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end):
                 redundant = True
             ClassInstance.multiplelogins = True
@@ -242,7 +289,6 @@ if sort_by_time == True:
         
 elif sort_by_roster == True:
     for i in print_list:
-        print(i[0])  
-        
-        
-        
+        print(i[0])
+
+
