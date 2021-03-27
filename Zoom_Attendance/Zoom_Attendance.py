@@ -9,7 +9,7 @@
 # for the sake of anyone involved with something like that, hopefully 
 # that won't matter.
 
-# TODO: include date in datetime format
+# TODO: include date in datetime format so midnight issue is solved
 
 #%% Imported modules
 
@@ -21,7 +21,7 @@ import datetime
 #%% Parameters which may change with each check
 
 # Select which Zoom report you want to analyze.
-zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_96659058822.csv'
+zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_96659058822 (14).csv'
 
 # Note datetime follows 24-hr time. So if class starts at 3:30pm and you want a 
 # 5 minute buffer for late arrivals, you would specify datetime.time(15, 35).
@@ -108,6 +108,8 @@ class StudentData():
 #   Note that for some reason, the emails are not always in that format for a couple
 #   students. In this case, you'll need to edit your roster.csv emails to be
 #   whatever email the student shows up as having upon logging into Zoom.
+        
+#TODO: create structre which allows the provision of an alternate email (ugh)
 
 registered_students = [] 
 instances = []
@@ -122,7 +124,7 @@ for i in range(len(roster_email)):
     # And as full instances
     instances.append(locals()[''.join(re.split(r'\W+', str(roster_email[i])))]) 
 
-#%% Create a list of the attendees as strings (without repetition) including 
+#%% Create a list of the attendees as strings without repetition. Note this includes
 #   unregistered people such as the professor or TA(s).
 
 attendees = []
@@ -133,8 +135,8 @@ attendees = []
 #TODO: The list of present students should help for sorting entries by time rather
 #      than alphabetically as with the roster. 
 
-#   Create a list of the attendees as instances (without repetition) excluding
-#   unregistered people such as the professor or TAs.
+#   Check the atendees against the class roster, and create a list of the present
+#   students. Note this excludes everyone who is not on the roster. 
 
 present_students = []
 for attendee in attendees:
