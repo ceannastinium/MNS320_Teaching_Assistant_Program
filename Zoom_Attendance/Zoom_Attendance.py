@@ -21,8 +21,8 @@ import datetime
 #%% Parameters which may change with each check
 
 # Select which Zoom report you want to analyze.
-zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_96659058822 (14).csv'
-
+# zoom_report_file_name = 'C:/Users/ceann/Downloads/testingtesting.csv'
+zoom_report_file_name = 'C:/Users/ceann/Downloads/zoomus_meeting_report_96659058822 (23).csv'
 # Note datetime follows 24-hr time. So if class starts at 3:30pm and you want a 
 # 5 minute buffer for late arrivals, you would specify datetime.time(15, 35).
 # Likewise, if class ends at 4:45pm, you could buffer for 4:40 depending on
@@ -61,14 +61,23 @@ def time_in_seconds(time):     # takes datetime argument and returns time in sec
     time_in_seconds = int(time.strftime('%H'))*3600+int(time.strftime('%M'))*60+int(time.strftime('%S'))
     return time_in_seconds
 
+# def time_in_seconds(time):     # takes datetime argument and returns time in seconds as int
+#     time_in_seconds = int(int(time.strftime('%S')+time.strftime('%H'))*3600+int(time.strftime('%M'))*60)
+#     return time_in_seconds
 
-def zoom_to_datetime(z):     # takes date and time from Zoom format and returns it in datetime
-    jointime  = datetime.datetime(int(z[2]), int(z[0]), int(z[1]), int(z[3]), int(z[4]), int(z[5]))
+def zoom_to_datetime(z):     # takes time from list ['M', 'D', 'Y', 'H', 'm', 's'] and returns it in datetime
+    if len(z) == 6:
+        jointime  = datetime.datetime(int(z[2]), int(z[0]), int(z[1]), int(z[3]), int(z[4]), int(z[5]))
+    elif len(z) ==5:
+        jointime  = datetime.datetime(int(z[2]), int(z[0]), int(z[1]), int(z[3]), int(z[4]))
     return jointime
 
 
-def zoom_to_time(z):          # takes time from Zoom format and returns it in datetime
-    jointime  = datetime.time(int(z[3]), int(z[4]), int(z[5]))
+def zoom_to_time(z):          # takes time from list ['M', 'D', 'Y', 'H', 'm', 's'] and returns it in datetime
+    if len(z) == 6: 
+        jointime  = datetime.time(int(z[3]), int(z[4]), int(z[5]))
+    elif len(z) == 5: 
+        jointime  = datetime.time(int(z[3]), int(z[4]))
     return jointime
 
 
@@ -109,7 +118,7 @@ class StudentData():
 #   students. In this case, you'll need to edit your roster.csv emails to be
 #   whatever email the student shows up as having upon logging into Zoom.
         
-#TODO: create structre which allows the provision of an alternate email (ugh)
+#TODO: create structure which allows the provision of an alternate email (ugh)
 
 registered_students = [] 
 instances = []
@@ -167,22 +176,8 @@ for i in range(len(zoom_report_email)):
         # If the student is not joining the meeting for the first time, then the 
         # existing record is adjusted.
         else:
-            minidur = time_in_seconds(jointime) - time_in_seconds(ClassInstance.left[-1])
-            
-            # If the difference between this join time and the last leave time < 30 seconds, 
-            # then count it as a single duration. This is because Zoom counts multiple 
-            # join times / leave times even if the break in connectivity is negligible. 
-            if abs(minidur) < significant_departure:  
-                # Get rid of last leave time in favor of the new one
-                ClassInstance.left.pop(-1)
-                ClassInstance.left.append( leavetime )
-                # Keep last join
-    
-            # If the difference between sessions is significant, then the break 
-            # is recorded. 
-            else:
-                ClassInstance.joined.append( jointime  )
-                ClassInstance.left.append(   leavetime )
+            ClassInstance.joined.append( jointime  )
+            ClassInstance.left.append(   leavetime )
 
 #%% A possible error Zoom may make is listing times out of order. Here, let's 
 #   get them back in temporal order again.
@@ -192,17 +187,15 @@ for i in range(len(roster_email)):
     ClassInstance = locals()[''.join(re.split(r'\W+', str(roster_email[i])))]
     ClassInstance.joined = sorted(ClassInstance.joined)
     ClassInstance.left = sorted(ClassInstance.left)
-    
-    # TODO: consolidate this duration check with the above.
 
     left_to_pop = []
     joined_to_pop=[]
 
     # if there are multiple join times
     if len(ClassInstance.joined) > 1:    
-        for i in range(len(ClassInstance.joined)):
+        for i in range(len(ClassInstance.joined)-1): # -1 bc will always keep first join and last leave
 
-            minidur = time_in_seconds(ClassInstance.joined[i]) - time_in_seconds(ClassInstance.left[i-1])
+            minidur = time_in_seconds(ClassInstance.joined[i+1]) - time_in_seconds(ClassInstance.left[i])
             
             # If the difference between this join time and the last leave time is  
             # less than the amount of time a diconnect is considered significant (e.g. 30 seconds),
@@ -210,9 +203,9 @@ for i in range(len(roster_email)):
             # join times / leave times even if the break in connectivity is negligible. 
             if abs(minidur) < significant_departure:
                 # Get rid of last leave time in favor of the new one
-                left_to_pop.append(i-1)
+                left_to_pop.append(i)
                 # Keep last join, but pop the current join:
-                joined_to_pop.append(i)
+                joined_to_pop.append(i+1)
         offset = 0
         for i in joined_to_pop:
             ClassInstance.joined.pop(i - offset)
@@ -262,23 +255,28 @@ for i in range(len(roster_email)): # for each person in the roster
     else:     
         # Check if the first login time is after class started.
         if time_in_seconds(ClassInstance.joined[0]) > time_in_seconds(class_start):
-            print_list.append( ((fullname+' joined at '+ClassInstance.joined[0].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[0])))
+            print_list.append( ((fullname+' joined late at '+ClassInstance.joined[0].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[0])))
             ClassInstance.tardy = True
-        
+            
+        # Check if the logoff time was before class ended.
+        if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end):
+            print_list.append(((fullname+' left early at '+ClassInstance.left[-1].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[-1])))
+            ClassInstance.leftearly = True
+
         # Check if there are multiple logins.
         if len(ClassInstance.joined) > 1:
+            
             for i in range(len(ClassInstance.joined)): 
-                print_list.append(((fullname+' left at '+ClassInstance.left[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[i])))
+                
+                if i == max(range(len(ClassInstance.joined))) and ClassInstance.tardy == True:
+                    pass
+                else:
+                    print_list.append(((fullname+' left briefly at '+ClassInstance.left[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[i])))
                 if i != 0:
-                    print_list.append(((fullname+' joined at '+ClassInstance.joined[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[i])))
-            if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end):
-                redundant = True
+                    print_list.append(((fullname+' joined again at '+ClassInstance.joined[i].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.joined[i])))
             ClassInstance.multiplelogins = True
         
-        # Check if the logoff time was before class ended.
-        if time_in_seconds(ClassInstance.left[-1]) < time_in_seconds(class_end) and redundant == False:
-            print_list.append(((fullname+' left at '+ClassInstance.left[-1].strftime("%H:%M:%S")), time_in_seconds(ClassInstance.left[-1])))
-            ClassInstance.leftearly = True
+
 
 #%% Now print non-absence cases. These can be sorted by different parameters, such
 #   as time or roster position. I suggest just using time, since it is the most
